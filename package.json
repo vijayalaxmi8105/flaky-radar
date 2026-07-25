@@ -1,0 +1,12 @@
+﻿{
+  "name": "flaky-radar",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/api"
+  }
+}
