@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Repository {
+  id            String   @id @default(uuid())
+  githubId      BigInt   @unique
+  owner         String
+  name          String
+  fullName      String   @unique
+  defaultBranch String   @default("main")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ciRuns        CiRun[]
+
+  @@index([owner, name])
+  @@map("repositories")
+}
+
+model CiRun {
+  id            String   @id @default(uuid())
+  repositoryId  String
+  repository    Repository @relation(fields: [repositoryId], references: [id])
+
+  githubRunId   BigInt   @unique
+  workflowName  String
+  branch        String
+  commitSha     String
+  event         String
+  status        String
+  conclusion    String?
+  attempt       Int      @default(1)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  tests         Test[]
+
+  @@index([repositoryId, createdAt])
+  @@index([repositoryId, branch])
+  @@index([status])
+  @@map("ci_runs")
+}
+
+model Test {
+  id           String   @id @default(uuid())
+  ciRunId      String
+  ciRun        CiRun    @relation(fields: [ciRunId], references: [id])
+
+  name         String
+  suite        String?
+  status       String
+  durationMs   Int?
+  errorMessage String?  @db.Text
+  attempt      Int      @default(1)
+  createdAt    DateTime @default(now())
+
+  @@index([ciRunId])
+  @@index([name, suite])
+  @@index([status])
+  @@map("tests")
+}
