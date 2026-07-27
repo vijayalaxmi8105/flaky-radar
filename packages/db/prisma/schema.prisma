@@ -18,32 +18,38 @@ model Repository {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  ciRuns        CiRun[]
+  ciRuns             CiRun[]
+  tests              Test[]
+  webhookDeliveries  WebhookDelivery[]
+  userAccess         UserRepositoryAccess[]
 
   @@index([owner, name])
   @@map("repositories")
 }
 
 model CiRun {
-  id            String   @id @default(uuid())
-  repositoryId  String
-  repository    Repository @relation(fields: [repositoryId], references: [id])
+  id           String     @id @default(uuid())
+  repositoryId String
+  repository   Repository @relation(fields: [repositoryId], references: [id])
+  githubRunId  BigInt
+  workflowName String
+  branch       String
+  commitSha    String
+  actor        String?
+  event        String
+  status       String
+  conclusion   String?
+  attempt      Int        @default(1)
+  startedAt    DateTime?
+  completedAt  DateTime?
+  durationMs   Int?
+  createdAt    DateTime   @default(now())
 
-  githubRunId   BigInt   @unique
-  workflowName  String
-  branch        String
-  commitSha     String
-  event         String
-  status        String
-  conclusion    String?
-  attempt       Int      @default(1)
-  startedAt     DateTime?
-  completedAt   DateTime?
-  createdAt     DateTime @default(now())
+  testExecutions TestExecution[]
 
-  tests         Test[]
-
-  @@index([repositoryId, createdAt])
+  // one run per repo per github_run_id — prevents duplicate ingestion of the same run
+  @@unique([repositoryId, githubRunId])
+  @@index([repositoryId, startedAt(sort: Desc)])
   @@index([repositoryId, branch])
   @@index([status])
   @@map("ci_runs")
@@ -51,19 +57,90 @@ model CiRun {
 
 model Test {
   id           String   @id @default(uuid())
+  repositoryId String
+  repository   Repository @relation(fields: [repositoryId], references: [id])
+  suiteName    String
+  testName     String
+  firstSeenAt  DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+
+  executions   TestExecution[]
+  flakyScores  FlakyScore[]
+
+  // identity of a logical test = repo + suite + name
+  @@unique([repositoryId, suiteName, testName])
+  @@map("tests")
+}
+
+model TestExecution {
+  id           String   @id @default(uuid())
+  testId       String
+  test         Test     @relation(fields: [testId], references: [id])
   ciRunId      String
   ciRun        CiRun    @relation(fields: [ciRunId], references: [id])
-
-  name         String
-  suite        String?
-  status       String
+  status       String   // pass | fail | skip | error
   durationMs   Int?
   errorMessage String?  @db.Text
-  attempt      Int      @default(1)
+  stackTrace   String?  @db.Text
+  executedAt   DateTime @default(now())
+
+  // core query for rolling-window flaky analysis
+  @@index([testId, executedAt(sort: Desc)])
+  @@index([ciRunId])
+  @@map("test_executions")
+}
+
+model FlakyScore {
+  id               String   @id @default(uuid())
+  testId           String
+  test             Test     @relation(fields: [testId], references: [id])
+  windowDays       Int
+  passRate         Float
+  failureRate      Float
+  totalExecutions  Int
+  classification   String   // stable | flaky | broken | insufficient_data
+  confidenceScore  Float
+  computedAt       DateTime @default(now())
+
+  @@index([testId, computedAt(sort: Desc)])
+  @@map("flaky_scores")
+}
+
+model WebhookDelivery {
+  id               String     @id @default(uuid())
+  githubDeliveryId String     @unique
+  repositoryId     String?
+  repository       Repository? @relation(fields: [repositoryId], references: [id])
+  eventType        String
+  payload          Json
+  receivedAt       DateTime   @default(now())
+  processedAt      DateTime?
+  processingStatus String     @default("pending") // pending | processing | completed | failed
+
+  @@map("webhook_deliveries")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String?
+  githubOauthId String? @unique
+  role         String   @default("member") // admin | member | viewer
   createdAt    DateTime @default(now())
 
-  @@index([ciRunId])
-  @@index([name, suite])
-  @@index([status])
-  @@map("tests")
+  repositoryAccess UserRepositoryAccess[]
+
+  @@map("users")
+}
+
+model UserRepositoryAccess {
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  repositoryId String
+  repository   Repository @relation(fields: [repositoryId], references: [id])
+  role         String     @default("member")
+  grantedAt    DateTime   @default(now())
+
+  @@id([userId, repositoryId])
+  @@map("user_repository_access")
 }
