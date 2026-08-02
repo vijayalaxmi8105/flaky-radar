@@ -10,4 +10,15 @@ export interface CiEventJobData {
 
 export const ciEventsQueue = new Queue<CiEventJobData>(CI_EVENTS_QUEUE_NAME, {
   connection: queueConnection,
+  defaultJobOptions: {
+    attempts: 5,
+    backoff: {
+      type: "exponential",
+      delay: 2000, // 2s, 4s, 8s, 16s, 32s
+    },
+    removeOnComplete: {
+      age: 3600,
+    },
+    removeOnFail: false,
+  },
 });
