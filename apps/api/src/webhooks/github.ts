@@ -4,6 +4,7 @@ import { verifyGithubSignature } from "../middleware/verifyGithubSignature";
 import { logger } from "../logger";
 import { claimDeliveryId } from "./dedupe";
 import { prisma, Prisma } from "@flaky-radar/db";
+import { ciEventsQueue, PROCESS_WORKFLOW_RUN_JOB } from "@flaky-radar/queue";
 
 export const webhookRouter = Router();
 
@@ -35,8 +36,9 @@ webhookRouter.post(
       return res.status(202).json({ status: "duplicate_ignored" });
     }
 
+    let delivery;
     try {
-      await prisma.webhookDelivery.create({
+      delivery = await prisma.webhookDelivery.create({
         data: {
           githubDeliveryId: deliveryId,
           eventType,
@@ -56,6 +58,19 @@ webhookRouter.post(
       }
       logger.error({ err, deliveryId }, "failed to persist webhook delivery");
       return res.status(500).json({ error: "internal error" });
+    }
+
+    try {
+      await ciEventsQueue.add(PROCESS_WORKFLOW_RUN_JOB, {
+        webhookDeliveryId: delivery.id,
+      });
+    } catch (err) {
+      logger.error(
+        { err, deliveryId, webhookDeliveryId: delivery.id },
+        "failed to enqueue ci-events job"
+      );
+      // don't fail the response — the row is persisted; a later reconciliation
+      // job can catch anything stuck in "pending" processingStatus
     }
 
     logger.info(
