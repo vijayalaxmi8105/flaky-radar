@@ -7,7 +7,9 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "test:retry": "tsx src/test-retry.ts"
+    "test:retry": "tsx src/test-retry.ts",
+    "test:idempotency": "tsx src/test-idempotency.ts",
+    "test:payload-variations": "tsx src/test-payload-variations.ts"
   },
   "dependencies": {
     "@flaky-radar/db": "file:../../packages/db",
