@@ -35,3 +35,27 @@ queueStatsRouter.get("/admin/queue-stats", async (_req, res) => {
     });
   }
 });
+
+queueStatsRouter.get("/admin/dlq", async (req, res) => {
+  try {
+    const limit = Math.min(
+      Math.max(parseInt(String(req.query.limit ?? "20"), 10) || 20, 1),
+      100
+    );
+
+    const jobs = await ciEventsDlq.getJobs(["waiting"], 0, limit - 1);
+
+    res.json({
+      count: jobs.length,
+      jobs: jobs.map((job) => ({
+        dlqJobId: job.id,
+        ...job.data,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: "failed to fetch DLQ contents",
+      message: (err as Error).message,
+    });
+  }
+});
