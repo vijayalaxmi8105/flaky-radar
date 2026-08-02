@@ -5,3 +5,8 @@ export {
   PROCESS_WORKFLOW_RUN_JOB,
   type CiEventJobData,
 } from "./ciEvents";
+export {
+  ciEventsDlq,
+  CI_EVENTS_DLQ_NAME,
+  type CiEventDlqJobData,
+} from "./ciEventsDlq";
