@@ -9,8 +9,8 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "@flaky-radar/db": "^1.0.0",
-    "@flaky-radar/queue": "^1.0.0",
+    "@flaky-radar/db": "file:../../packages/db",
+    "@flaky-radar/queue": "file:../../packages/queue",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "ioredis": "^5.11.1",

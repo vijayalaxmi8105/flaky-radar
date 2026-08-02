@@ -1,4 +1,5 @@
 import express, { Router } from "express";
+import type { Request, Response } from "express";
 import { captureRawBody } from "../middleware/rawBody";
 import { verifyGithubSignature } from "../middleware/verifyGithubSignature";
 import { logger } from "../logger";
@@ -45,7 +46,7 @@ webhookRouter.post(
           payload: req.body,
         },
       });
-    } catch (err) {
+    } catch (err: unknown) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === "P2002"
