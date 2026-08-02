@@ -10,6 +10,7 @@
     "test:retry": "tsx src/test-retry.ts"
   },
   "dependencies": {
+    "@flaky-radar/db": "file:../../packages/db",
     "@flaky-radar/queue": "file:../../packages/queue",
     "bullmq": "^5.81.2",
     "ioredis": "^5.11.1",
