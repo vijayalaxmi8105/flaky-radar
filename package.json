@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "flaky-radar",
   "version": "0.1.0",
   "private": true,
@@ -8,5 +8,8 @@
   ],
   "scripts": {
     "dev": "npm run dev -w apps/api"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.10.1"
   }
 }

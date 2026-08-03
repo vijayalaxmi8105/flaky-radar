@@ -43,6 +43,7 @@ model CiRun {
   startedAt    DateTime?
   completedAt  DateTime?
   durationMs   Int?
+  artifactProcessedAt DateTime?
   createdAt    DateTime   @default(now())
 
   testExecutions TestExecution[]
