@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { Worker } from "bullmq";
 import {
   queueConnection,
@@ -5,23 +6,19 @@ import {
   ciEventsDlq,
   type CiEventJobData,
 } from "@flaky-radar/queue";
-import { logger } from "./logger";
-import { processCiEvent } from "./processors/processor";
-
+import { logger } from "./logger.js";
+import { processCiEvent } from "./processors/processor.js";
 const worker = new Worker<CiEventJobData>(CI_EVENTS_QUEUE_NAME, processCiEvent, {
   connection: queueConnection,
   concurrency: 1,
 });
-
 worker.on("completed", (job) => {
   logger.info({ jobId: job.id }, "worker: job completed");
 });
-
 worker.on("failed", async (job, err) => {
   const attemptsMade = job?.attemptsMade ?? 0;
   const maxAttempts = job?.opts.attempts ?? 0;
   const willRetry = attemptsMade < maxAttempts;
-
   logger.error(
     {
       jobId: job?.id,
@@ -32,7 +29,6 @@ worker.on("failed", async (job, err) => {
     },
     "worker: job failed"
   );
-
   if (!willRetry && job) {
     try {
       await ciEventsDlq.add("dead-letter", {
@@ -55,13 +51,10 @@ worker.on("failed", async (job, err) => {
     }
   }
 });
-
 worker.on("error", (err) => {
   logger.error({ error: err.message }, "worker: unexpected error");
 });
-
 logger.info({ queue: CI_EVENTS_QUEUE_NAME }, "worker: listening for jobs");
-
 process.on("SIGTERM", async () => {
   logger.info("worker: SIGTERM received, closing gracefully");
   await worker.close();

@@ -61,17 +61,27 @@ webhookRouter.post(
       return res.status(500).json({ error: "internal error" });
     }
 
-    try {
-      await ciEventsQueue.add(PROCESS_WORKFLOW_RUN_JOB, {
-        webhookDeliveryId: delivery.id,
-      });
-    } catch (err) {
-      logger.error(
-        { err, deliveryId, webhookDeliveryId: delivery.id },
-        "failed to enqueue ci-events job"
+    // Only workflow_run events carry the data our processor needs.
+    // Other event types (push, etc.) get persisted above for audit/history
+    // but should not be enqueued — the processor would just fail on them.
+    if (eventType === "workflow_run") {
+      try {
+        await ciEventsQueue.add(PROCESS_WORKFLOW_RUN_JOB, {
+          webhookDeliveryId: delivery.id,
+        });
+      } catch (err) {
+        logger.error(
+          { err, deliveryId, webhookDeliveryId: delivery.id },
+          "failed to enqueue ci-events job"
+        );
+        // don't fail the response — the row is persisted; a later reconciliation
+        // job can catch anything stuck in "pending" processingStatus
+      }
+    } else {
+      logger.info(
+        { deliveryId, eventType },
+        "event type does not require processing, persisted only"
       );
-      // don't fail the response — the row is persisted; a later reconciliation
-      // job can catch anything stuck in "pending" processingStatus
     }
 
     logger.info(

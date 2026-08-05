@@ -21,6 +21,19 @@ async function main() {
   });
   console.log("✅ Repository:", repo.fullName, `(${repo.id})`);
 
+  const realRepo = await prisma.repository.upsert({
+    where: { fullName: "vijayalaxmi8105/flaky-radar" },
+    update: {},
+    create: {
+      githubId: 1311617597n,
+      owner: "vijayalaxmi8105",
+      name: "flaky-radar",
+      fullName: "vijayalaxmi8105/flaky-radar",
+      defaultBranch: "main",
+    },
+  });
+  console.log("✅ Repository:", realRepo.fullName, `(${realRepo.id})`);
+
   const run = await prisma.ciRun.upsert({
     where: {
       repositoryId_githubRunId: {

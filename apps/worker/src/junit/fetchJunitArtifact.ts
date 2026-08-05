@@ -1,5 +1,5 @@
 import AdmZip from "adm-zip";
-import { logger } from "../logger";
+import { logger } from "../logger.js";
 
 const GITHUB_API = "https://api.github.com";
 

@@ -1,5 +1,5 @@
 import { prisma } from "@flaky-radar/db";
-import { ParsedTestCase, TestExecutionStatus } from "./parseJunit";
+import { ParsedTestCase, TestExecutionStatus } from "./parseJunit.js";
 
 // Schema stores short-form statuses: pass | fail | skip | error
 const STATUS_MAP: Record<TestExecutionStatus, string> = {

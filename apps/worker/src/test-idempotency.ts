@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { prisma } from "@flaky-radar/db";
-import { processCiEvent } from "./processors/processor";
+import { processCiEvent } from "./processors/processor.js";
 import type { Job } from "bullmq";
 import type { CiEventJobData } from "@flaky-radar/queue";
 
