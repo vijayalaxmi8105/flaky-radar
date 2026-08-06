@@ -1,4 +1,4 @@
-
+import { confidence_score } from "./confidence_score.js";
 
 export type Classification = 'INSUFFICIENT_DATA' | 'STABLE' | 'FLAKY' | 'BROKEN';
 
@@ -12,9 +12,6 @@ const STABLE_ALTERNATION_CEILING = 0.02;
 const FLAKY_FAILURE_RATE_FLOOR = 0.03;
 const FLAKY_FAILURE_RATE_CEILING = 0.90;
 const FLAKY_ALTERNATION_THRESHOLD = 0.08; // strict >
-
-const TARGET_SAMPLE_SIZE = 30;
-const NORMALIZING_RANGE = 0.3;
 
 export interface ClassificationInput {
   failure_rate: number;
@@ -32,12 +29,9 @@ export function classify(input: ClassificationInput): ClassificationResult {
 
   const classification = decideClassification(failure_rate, alternation_rate, total_executions);
 
-  const confidence_score =
-    classification === 'INSUFFICIENT_DATA'
-      ? 0
-      : computeConfidence(alternation_rate, total_executions);
+  const score = confidence_score(classification, total_executions, alternation_rate, failure_rate);
 
-  return { classification, confidence_score };
+  return { classification, confidence_score: score };
 }
 
 function decideClassification(
@@ -66,13 +60,4 @@ function decideClassification(
   }
 
   return 'STABLE';
-}
-
-function computeConfidence(alternation_rate: number, total_executions: number): number {
-  const sample_factor = Math.min(1.0, total_executions / TARGET_SAMPLE_SIZE);
-
-  const distance = Math.abs(alternation_rate - FLAKY_ALTERNATION_THRESHOLD);
-  const distance_from_threshold_factor = Math.min(1.0, distance / NORMALIZING_RANGE);
-
-  return sample_factor * distance_from_threshold_factor;
 }

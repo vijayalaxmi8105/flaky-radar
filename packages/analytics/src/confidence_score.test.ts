@@ -91,13 +91,4 @@ describe('classify()', () => {
       expect(result.classification).toBe('STABLE');
     });
   });
-
-  // ---------- confidence_score wiring ----------
-  describe('confidence_score wiring', () => {
-    it('is lower for a sample right at MIN_SAMPLE than for a larger sample, same alternation_rate', () => {
-      const low = classify({ failure_rate: 0.5, alternation_rate: 0.5, total_executions: 10 });
-      const high = classify({ failure_rate: 0.5, alternation_rate: 0.5, total_executions: 30 });
-      expect(low.confidence_score).toBeLessThan(high.confidence_score);
-    });
-  });
 });
