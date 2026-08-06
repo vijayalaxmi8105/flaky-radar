@@ -2,6 +2,7 @@
   "name": "@flaky-radar/api",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -9,6 +10,7 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
+    "@flaky-radar/analytics": "file:../../packages/analytics",
     "@flaky-radar/db": "file:../../packages/db",
     "@flaky-radar/queue": "file:../../packages/queue",
     "dotenv": "^17.4.2",
