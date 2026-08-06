@@ -1,9 +1,9 @@
 import express, { Router } from "express";
 import type { Request, Response } from "express";
-import { captureRawBody } from "../middleware/rawBody";
-import { verifyGithubSignature } from "../middleware/verifyGithubSignature";
-import { logger } from "../logger";
-import { claimDeliveryId } from "./dedupe";
+import { captureRawBody } from "../middleware/rawBody.js";
+import { verifyGithubSignature } from "../middleware/verifyGithubSignature.js";
+import { logger } from "../logger.js";
+import { claimDeliveryId } from "./dedupe.js";
 import { prisma, Prisma } from "@flaky-radar/db";
 import { ciEventsQueue, PROCESS_WORKFLOW_RUN_JOB } from "@flaky-radar/queue";
 

@@ -1,4 +1,4 @@
-import { redis } from '../redis';
+import { redis } from '../redis.js';
 
 const DEDUPE_TTL_SECONDS = 60 * 60 * 24; // 24h — matches GitHub's practical retry window
 
