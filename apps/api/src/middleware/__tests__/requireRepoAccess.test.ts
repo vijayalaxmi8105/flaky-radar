@@ -45,7 +45,7 @@ describe("repo-level access control", () => {
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(403);
-    expect(res.body.error).toBe("no_repo_access");
+    expect(res.body.error.code).toBe("FORBIDDEN");
   });
 
   it("returns 200 for a member with a matching user_repository_access row", async () => {
