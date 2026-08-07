@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { pool } from "../db";
-import { redis } from "../redis";
+import { pool } from "../db.js";
+import { redis } from "../redis.js";
 
 export const healthRouter = Router();
 
@@ -19,14 +19,14 @@ healthRouter.get("/readyz", async (req, res) => {
   const dbCheck = pool
     .query("SELECT 1")
     .then(() => (checks.db = "ok"))
-    .catch((err) => {
+    .catch((err: any) => {
       req.log.warn({ err }, "readyz: db check failed");
     });
 
   const redisCheck = redis
     .ping()
     .then(() => (checks.redis = "ok"))
-    .catch((err) => {
+    .catch((err: any) => {
       req.log.warn({ err }, "readyz: redis check failed");
     });
 
