@@ -14,6 +14,83 @@ const TOP_FLAKY_LIMIT = 5;
 const RECENT_RUNS_LIMIT = 10;
 
 repositoriesRouter.get(
+  "/repositories",
+  authenticate,
+  requireRole("admin", "member", "viewer"),
+  async (req, res) => {
+    try {
+      const userId = req.user!.sub;
+
+      const access = await prisma.userRepositoryAccess.findMany({
+        where: { userId },
+        select: { repositoryId: true },
+      });
+      const repoIds = access.map((a) => a.repositoryId);
+
+      if (repoIds.length === 0) {
+        return res.json({ repositories: [] });
+      }
+
+      const repos = await prisma.repository.findMany({
+        where: { id: { in: repoIds } },
+        orderBy: { name: "asc" },
+      });
+
+      const results = await Promise.all(
+        repos.map(async (repo) => {
+          const tests = await prisma.test.findMany({
+            where: { repositoryId: repo.id },
+            include: {
+              executions: {
+                where: { ciRun: { branch: repo.defaultBranch } },
+                orderBy: { executedAt: "asc" },
+                select: { status: true },
+              },
+            },
+          });
+
+          const classifications = tests.map((test) => {
+            const executions: AnalyticsExecution[] = test.executions.map((e) => ({
+              status: e.status as AnalyticsExecution["status"],
+            }));
+            const fr = failureRate(executions);
+            const ar = alternationRate(executions);
+            return classify({
+              failure_rate: fr.failureRate,
+              alternation_rate: ar.alternationRate,
+              total_executions: fr.totalExecutions,
+            }).classification;
+          });
+
+          const scoreable = classifications.filter((c) => c !== "INSUFFICIENT_DATA");
+          const reliabilityScore =
+            scoreable.length > 0
+              ? scoreable.filter((c) => c === "STABLE").length / scoreable.length
+              : null;
+
+          return {
+            id: repo.id,
+            owner: repo.owner,
+            name: repo.name,
+            fullName: repo.fullName,
+            defaultBranch: repo.defaultBranch,
+            isActive: repo.isActive,
+            githubId: repo.githubId.toString(),
+            reliabilityScore,
+            testCount: tests.length,
+          };
+        })
+      );
+
+      res.json({ repositories: results });
+    } catch (err) {
+      req.log?.error({ err }, "GET /repositories failed");
+      return sendError(req, res, "INTERNAL_ERROR", "Something went wrong while listing repositories.");
+    }
+  }
+);
+
+repositoriesRouter.get(
   "/repositories/:repoId",
   authenticate,
   requireRole("admin", "member", "viewer"),
