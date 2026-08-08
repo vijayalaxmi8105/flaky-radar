@@ -11,6 +11,8 @@ const repositoriesRouter = Router();
 
 const TOP_FLAKY_LIMIT = 5;
 const RECENT_RUNS_LIMIT = 10;
+const DEFAULT_RUNS_LIMIT = 20;
+const MAX_RUNS_LIMIT = 100;
 
 interface LatestFlakyScoreRow {
   testId: string;
@@ -218,6 +220,78 @@ repositoriesRouter.get(
     } catch (err) {
       req.log?.error({ err }, "GET /repositories/:repoId failed");
       return sendError(req, res, "INTERNAL_ERROR", "Something went wrong while fetching this repository.");
+    }
+  }
+);
+
+repositoriesRouter.get(
+  "/repositories/:repoId/runs",
+  authenticate,
+  requireRole("admin", "member", "viewer"),
+  requireRepoAccess,
+  async (req, res) => {
+    try {
+      const repoId = Array.isArray(req.params.repoId)
+        ? req.params.repoId[0]
+        : req.params.repoId;
+
+      if (!repoId) {
+        return sendError(req, res, "VALIDATION_ERROR", "repoId is required.");
+      }
+
+      const { branch, status, since, until, cursor } = req.query as Record<
+        string,
+        string | undefined
+      >;
+
+      let limit = DEFAULT_RUNS_LIMIT;
+      if (req.query.limit !== undefined) {
+        const parsed = Number(req.query.limit);
+        if (!Number.isNaN(parsed) && parsed > 0) {
+          limit = Math.min(Math.floor(parsed), MAX_RUNS_LIMIT);
+        }
+      }
+
+      const where: Record<string, unknown> = { repositoryId: repoId };
+      if (branch) where.branch = branch;
+      if (status) where.status = status;
+      if (since || until) {
+        where.startedAt = {
+          ...(since ? { gte: new Date(since) } : {}),
+          ...(until ? { lte: new Date(until) } : {}),
+        };
+      }
+
+      // fetch one extra row to detect whether a next page exists
+      const runs = await prisma.ciRun.findMany({
+        where,
+        orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+        take: limit + 1,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
+
+      const hasMore = runs.length > limit;
+      const page = hasMore ? runs.slice(0, limit) : runs;
+      const nextCursor = hasMore ? page[page.length - 1].id : null;
+
+      res.json({
+        runs: page.map((r) => ({
+          id: r.id,
+          branch: r.branch,
+          status: r.status,
+          conclusion: r.conclusion,
+          workflowName: r.workflowName,
+          commitSha: r.commitSha,
+          actor: r.actor,
+          startedAt: r.startedAt,
+          completedAt: r.completedAt,
+          durationMs: r.durationMs,
+        })),
+        nextCursor,
+      });
+    } catch (err) {
+      req.log?.error({ err }, "GET /repositories/:repoId/runs failed");
+      return sendError(req, res, "INTERNAL_ERROR", "Something went wrong while fetching runs.");
     }
   }
 );
