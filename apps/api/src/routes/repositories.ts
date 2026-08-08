@@ -1,4 +1,3 @@
-// apps/api/src/routes/repositories.ts
 import { Router } from "express";
 import { prisma } from "@flaky-radar/db";
 import { failureRate, alternationRate, classify } from "@flaky-radar/analytics";
@@ -12,6 +11,12 @@ const repositoriesRouter = Router();
 
 const TOP_FLAKY_LIMIT = 5;
 const RECENT_RUNS_LIMIT = 10;
+
+interface LatestFlakyScoreRow {
+  testId: string;
+  repositoryId: string;
+  classification: string;
+}
 
 repositoriesRouter.get(
   "/repositories",
@@ -36,51 +41,63 @@ repositoriesRouter.get(
         orderBy: { name: "asc" },
       });
 
-      const results = await Promise.all(
-        repos.map(async (repo) => {
-          const tests = await prisma.test.findMany({
-            where: { repositoryId: repo.id },
-            include: {
-              executions: {
-                where: { ciRun: { branch: repo.defaultBranch } },
-                orderBy: { executedAt: "asc" },
-                select: { status: true },
-              },
-            },
-          });
+      // Latest cached flaky_scores row per test, scoped to accessible repos.
+      // flaky_scores is a history table (no unique constraint on testId),
+      // so "current" score = most recent row per test by computedAt.
+      // Prisma has no DISTINCT ON support, hence raw SQL here.
+      const latestScores = await prisma.$queryRaw<LatestFlakyScoreRow[]>`
+        SELECT DISTINCT ON (fs."testId")
+          fs."testId",
+          t."repositoryId",
+          fs.classification
+        FROM flaky_scores fs
+        JOIN tests t ON t.id = fs."testId"
+        WHERE t."repositoryId" = ANY(${repoIds})
+        ORDER BY fs."testId", fs."computedAt" DESC
+      `;
 
-          const classifications = tests.map((test) => {
-            const executions: AnalyticsExecution[] = test.executions.map((e) => ({
-              status: e.status as AnalyticsExecution["status"],
-            }));
-            const fr = failureRate(executions);
-            const ar = alternationRate(executions);
-            return classify({
-              failure_rate: fr.failureRate,
-              alternation_rate: ar.alternationRate,
-              total_executions: fr.totalExecutions,
-            }).classification;
-          });
-
-          const scoreable = classifications.filter((c) => c !== "INSUFFICIENT_DATA");
-          const reliabilityScore =
-            scoreable.length > 0
-              ? scoreable.filter((c) => c === "STABLE").length / scoreable.length
-              : null;
-
-          return {
-            id: repo.id,
-            owner: repo.owner,
-            name: repo.name,
-            fullName: repo.fullName,
-            defaultBranch: repo.defaultBranch,
-            isActive: repo.isActive,
-            githubId: repo.githubId.toString(),
-            reliabilityScore,
-            testCount: tests.length,
-          };
-        })
+      // Total test count per repo (independent of scoring/cache).
+      const testCounts = await prisma.test.groupBy({
+        by: ["repositoryId"],
+        where: { repositoryId: { in: repoIds } },
+        _count: { id: true },
+      });
+      const testCountByRepo = new Map(
+        testCounts.map((tc) => [tc.repositoryId, tc._count.id])
       );
+
+      // Group latest scores by repo, then compute reliabilityScore the same
+      // way the detail endpoint does: share of scoreable (non
+      // insufficient_data) tests that are stable. Cache writes
+      // classification lowercase (see recompute-flaky-scores.ts), so
+      // compare lowercase here too.
+      const scoresByRepo = new Map<string, string[]>();
+      for (const row of latestScores) {
+        const list = scoresByRepo.get(row.repositoryId) ?? [];
+        list.push(row.classification);
+        scoresByRepo.set(row.repositoryId, list);
+      }
+
+      const results = repos.map((repo) => {
+        const classifications = scoresByRepo.get(repo.id) ?? [];
+        const scoreable = classifications.filter((c) => c !== "insufficient_data");
+        const reliabilityScore =
+          scoreable.length > 0
+            ? scoreable.filter((c) => c === "stable").length / scoreable.length
+            : null;
+
+        return {
+          id: repo.id,
+          owner: repo.owner,
+          name: repo.name,
+          fullName: repo.fullName,
+          defaultBranch: repo.defaultBranch,
+          isActive: repo.isActive,
+          githubId: repo.githubId.toString(),
+          reliabilityScore,
+          testCount: testCountByRepo.get(repo.id) ?? 0,
+        };
+      });
 
       res.json({ repositories: results });
     } catch (err) {
