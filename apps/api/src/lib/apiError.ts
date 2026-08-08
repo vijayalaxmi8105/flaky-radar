@@ -3,6 +3,7 @@
 export type ErrorCode =
   | "VALIDATION_ERROR"
   | "REPOSITORY_NOT_FOUND"
+  | "RUN_NOT_FOUND"
   | "FORBIDDEN"
   | "UNAUTHORIZED"
   | "INTERNAL_ERROR";
@@ -12,6 +13,7 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
   REPOSITORY_NOT_FOUND: 404,
+  RUN_NOT_FOUND: 404,
   INTERNAL_ERROR: 500,
 };
 
