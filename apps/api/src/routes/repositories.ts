@@ -13,11 +13,24 @@ const TOP_FLAKY_LIMIT = 5;
 const RECENT_RUNS_LIMIT = 10;
 const DEFAULT_RUNS_LIMIT = 20;
 const MAX_RUNS_LIMIT = 100;
+const DEFAULT_SUMMARY_WINDOW_DAYS = 30;
 
 interface LatestFlakyScoreRow {
   testId: string;
   repositoryId: string;
   classification: string;
+}
+
+interface LatestFlakyScoreFullRow {
+  testId: string;
+  suiteName: string;
+  testName: string;
+  passRate: number;
+  failureRate: number;
+  totalExecutions: number;
+  classification: string;
+  confidenceScore: number;
+  computedAt: Date;
 }
 
 repositoriesRouter.get(
@@ -239,10 +252,7 @@ repositoriesRouter.get(
         return sendError(req, res, "VALIDATION_ERROR", "repoId is required.");
       }
 
-      const { branch, status, since, until, cursor } = req.query as Record<
-        string,
-        string | undefined
-      >;
+      const { branch, status, since, until, cursor } = req.query as Record<string, string | undefined>;
 
       let limit = DEFAULT_RUNS_LIMIT;
       if (req.query.limit !== undefined) {
@@ -292,6 +302,198 @@ repositoriesRouter.get(
     } catch (err) {
       req.log?.error({ err }, "GET /repositories/:repoId/runs failed");
       return sendError(req, res, "INTERNAL_ERROR", "Something went wrong while fetching runs.");
+    }
+  }
+);
+
+repositoriesRouter.get(
+  "/repositories/:repoId/flaky-tests",
+  authenticate,
+  requireRole("admin", "member", "viewer"),
+  requireRepoAccess,
+  async (req, res) => {
+    try {
+      const repoId = Array.isArray(req.params.repoId)
+        ? req.params.repoId[0]
+        : req.params.repoId;
+
+      if (!repoId) {
+        return sendError(req, res, "VALIDATION_ERROR", "repoId is required.");
+      }
+
+      const repo = await prisma.repository.findUnique({ where: { id: repoId } });
+      if (!repo) {
+        return sendError(req, res, "REPOSITORY_NOT_FOUND", "No repository with this id was found.");
+      }
+
+      // Latest cached flaky_scores row per test in this repo (same
+      // DISTINCT ON pattern as the list endpoint, since flaky_scores is a
+      // history table with no unique constraint on testId). Reads from
+      // cache rather than live-computing, matching the list endpoint's
+      // approach and avoiding the N+1 anti-pattern fixed on Day 24.
+      const latestScores = await prisma.$queryRaw<LatestFlakyScoreFullRow[]>`
+        SELECT DISTINCT ON (fs."testId")
+          fs."testId",
+          t."suiteName",
+          t."testName",
+          fs."passRate",
+          fs."failureRate",
+          fs."totalExecutions",
+          fs.classification,
+          fs."confidenceScore",
+          fs."computedAt"
+        FROM flaky_scores fs
+        JOIN tests t ON t.id = fs."testId"
+        WHERE t."repositoryId" = ${repoId}
+        ORDER BY fs."testId", fs."computedAt" DESC
+      `;
+
+      // "fix this first" ranking: most confidently flaky first.
+      // Cache writes classification lowercase (recompute-flaky-scores.ts),
+      // so compare lowercase here too, matching the list endpoint.
+      const flakyTests = latestScores
+        .filter((row) => row.classification === "flaky")
+        .sort((a, b) => b.confidenceScore - a.confidenceScore)
+        .map((row) => ({
+          testId: row.testId,
+          suiteName: row.suiteName,
+          testName: row.testName,
+          passRate: row.passRate,
+          failureRate: row.failureRate,
+          totalExecutions: row.totalExecutions,
+          confidenceScore: row.confidenceScore,
+          computedAt: row.computedAt,
+        }));
+
+      res.json({ flakyTests });
+    } catch (err) {
+      req.log?.error({ err }, "GET /repositories/:repoId/flaky-tests failed");
+      return sendError(req, res, "INTERNAL_ERROR", "Something went wrong while fetching flaky tests.");
+    }
+  }
+);
+
+repositoriesRouter.get(
+  "/repositories/:repoId/analytics/summary",
+  authenticate,
+  requireRole("admin", "member", "viewer"),
+  requireRepoAccess,
+  async (req, res) => {
+    try {
+      const repoId = Array.isArray(req.params.repoId)
+        ? req.params.repoId[0]
+        : req.params.repoId;
+
+      if (!repoId) {
+        return sendError(req, res, "VALIDATION_ERROR", "repoId is required.");
+      }
+
+      const repo = await prisma.repository.findUnique({ where: { id: repoId } });
+      if (!repo) {
+        return sendError(req, res, "REPOSITORY_NOT_FOUND", "No repository with this id was found.");
+      }
+
+      let windowDays = DEFAULT_SUMMARY_WINDOW_DAYS;
+      if (req.query.days !== undefined) {
+        const parsed = Number(req.query.days);
+        if (!Number.isNaN(parsed) && parsed > 0) {
+          windowDays = Math.floor(parsed);
+        }
+      }
+      const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+
+      // Latest cached flaky_scores row per test in this repo (same
+      // DISTINCT ON pattern used elsewhere in this file).
+      const latestScores = await prisma.$queryRaw<LatestFlakyScoreFullRow[]>`
+        SELECT DISTINCT ON (fs."testId")
+          fs."testId",
+          t."suiteName",
+          t."testName",
+          fs."passRate",
+          fs."failureRate",
+          fs."totalExecutions",
+          fs.classification,
+          fs."confidenceScore",
+          fs."computedAt"
+        FROM flaky_scores fs
+        JOIN tests t ON t.id = fs."testId"
+        WHERE t."repositoryId" = ${repoId}
+        ORDER BY fs."testId", fs."computedAt" DESC
+      `;
+
+      // Classification buckets. "broken" is a distinct cache classification
+      // (consistently failing, not flaky) separate from stable/flaky/
+      // insufficient_data - confirmed via direct DB inspection.
+      const classificationCounts = {
+        stable: 0,
+        flaky: 0,
+        broken: 0,
+        insufficient_data: 0,
+      };
+      for (const row of latestScores) {
+        if (row.classification in classificationCounts) {
+          classificationCounts[row.classification as keyof typeof classificationCounts]++;
+        }
+      }
+
+      // reliabilityScore: share of scoreable tests (i.e. not
+      // insufficient_data) that are stable. Matches the definition used by
+      // the /repositories list endpoint - "scoreable" is everything except
+      // insufficient_data, so "broken" tests count against reliability
+      // without being confused for "flaky".
+      const scoreableCount =
+        latestScores.length - classificationCounts.insufficient_data;
+      const reliabilityScore =
+        scoreableCount > 0 ? classificationCounts.stable / scoreableCount : null;
+
+      const topFlakyTests = latestScores
+        .filter((row) => row.classification === "flaky")
+        .sort((a, b) => b.confidenceScore - a.confidenceScore)
+        .slice(0, TOP_FLAKY_LIMIT)
+        .map((row) => ({
+          testId: row.testId,
+          suiteName: row.suiteName,
+          testName: row.testName,
+          failureRate: row.failureRate,
+          confidenceScore: row.confidenceScore,
+          totalExecutions: row.totalExecutions,
+        }));
+
+      // Run summary over the window, computed directly from ci_runs
+      // (not cached — cheap aggregate, and freshness matters more here
+      // than for the per-test flaky scores).
+      const runsInWindow = await prisma.ciRun.findMany({
+        where: { repositoryId: repoId, startedAt: { gte: since } },
+        select: { conclusion: true },
+      });
+
+      const totalRuns = runsInWindow.length;
+      const passedRuns = runsInWindow.filter((r) => r.conclusion === "success").length;
+      const failedRuns = runsInWindow.filter((r) => r.conclusion === "failure").length;
+      const runPassRate = totalRuns > 0 ? passedRuns / totalRuns : null;
+
+      res.json({
+        repositoryId: repo.id,
+        reliabilityScore,
+        testCounts: {
+          total: latestScores.length,
+          stable: classificationCounts.stable,
+          flaky: classificationCounts.flaky,
+          broken: classificationCounts.broken,
+          insufficientData: classificationCounts.insufficient_data,
+        },
+        runSummary: {
+          windowDays,
+          totalRuns,
+          passedRuns,
+          failedRuns,
+          passRate: runPassRate,
+        },
+        topFlakyTests,
+      });
+    } catch (err) {
+      req.log?.error({ err }, "GET /repositories/:repoId/analytics/summary failed");
+      return sendError(req, res, "INTERNAL_ERROR", "Something went wrong while fetching the analytics summary.");
     }
   }
 );
