@@ -6,6 +6,7 @@ export type ErrorCode =
   | "RUN_NOT_FOUND"
   | "FORBIDDEN"
   | "UNAUTHORIZED"
+  | "RATE_LIMITED"
   | "INTERNAL_ERROR";
 
 const STATUS_BY_CODE: Record<ErrorCode, number> = {
@@ -14,6 +15,7 @@ const STATUS_BY_CODE: Record<ErrorCode, number> = {
   FORBIDDEN: 403,
   REPOSITORY_NOT_FOUND: 404,
   RUN_NOT_FOUND: 404,
+  RATE_LIMITED: 429,
   INTERNAL_ERROR: 500,
 };
 
