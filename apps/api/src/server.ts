@@ -1,7 +1,7 @@
-﻿
-import "dotenv/config";
+﻿import "dotenv/config";
 import express from "express";
 import { requestLogger } from "./middleware/requestLogger.js";
+import { rateLimit } from "./middleware/rateLimit.js";
 import { healthRouter } from "./routes/health.js";
 import { queueStatsRouter } from "./routes/queueStats.js";
 import { authRouter } from "./routes/auth.js";
@@ -14,6 +14,7 @@ const app = express();
 
 app.use(requestLogger);
 app.use(express.json());
+app.use("/api", rateLimit);
 // app.use("/webhooks", webhookRouter);
 app.use(healthRouter);
 app.use("/api", queueStatsRouter);
