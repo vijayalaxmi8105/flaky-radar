@@ -498,4 +498,129 @@ repositoriesRouter.get(
   }
 );
 
+repositoriesRouter.get(
+  "/repositories/:repoId/tests/:testId",
+  authenticate,
+  requireRole("admin", "member", "viewer"),
+  requireRepoAccess,
+  async (req, res) => {
+    try {
+      const repoId = Array.isArray(req.params.repoId) ? req.params.repoId[0] : req.params.repoId;
+      const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
+
+      if (!repoId || !testId) {
+        return sendError(req, res, "VALIDATION_ERROR", "repoId and testId are required.");
+      }
+
+      const repo = await prisma.repository.findUnique({ where: { id: repoId } });
+      if (!repo) {
+        return sendError(req, res, "REPOSITORY_NOT_FOUND", "No repository with this id was found.");
+      }
+
+      const test = await prisma.test.findUnique({
+        where: { id: testId },
+        include: {
+          executions: {
+            where: { ciRun: { branch: repo.defaultBranch } },
+            orderBy: { executedAt: "asc" },
+            select: { status: true },
+          },
+        },
+      });
+
+      if (!test || test.repositoryId !== repoId) {
+        return sendError(req, res, "TEST_NOT_FOUND", "No test with this id was found in this repository.");
+      }
+
+      const executions: AnalyticsExecution[] = test.executions.map((e) => ({
+        status: e.status as AnalyticsExecution["status"],
+      }));
+
+      const fr = failureRate(executions);
+      const ar = alternationRate(executions);
+      const result = classify({
+        failure_rate: fr.failureRate,
+        alternation_rate: ar.alternationRate,
+        total_executions: fr.totalExecutions,
+      });
+
+      res.json({
+        testId: test.id,
+        repositoryId: test.repositoryId,
+        suiteName: test.suiteName,
+        testName: test.testName,
+        failureRate: fr.failureRate,
+        alternationRate: ar.alternationRate,
+        totalExecutions: fr.totalExecutions,
+        classification: result.classification,
+        confidenceScore: result.confidence_score,
+        firstSeenAt: test.firstSeenAt,
+        lastSeenAt: test.lastSeenAt,
+      });
+    } catch (err) {
+      req.log?.error({ err }, "GET /repositories/:repoId/tests/:testId failed");
+      return sendError(req, res, "INTERNAL_ERROR", "Something went wrong while fetching this test.");
+    }
+  }
+);
+
+repositoriesRouter.get(
+  "/repositories/:repoId/tests/:testId/timeline",
+  authenticate,
+  requireRole("admin", "member", "viewer"),
+  requireRepoAccess,
+  async (req, res) => {
+    try {
+      const repoId = Array.isArray(req.params.repoId) ? req.params.repoId[0] : req.params.repoId;
+      const testId = Array.isArray(req.params.testId) ? req.params.testId[0] : req.params.testId;
+
+      if (!repoId || !testId) {
+        return sendError(req, res, "VALIDATION_ERROR", "repoId and testId are required.");
+      }
+
+      const repo = await prisma.repository.findUnique({ where: { id: repoId } });
+      if (!repo) {
+        return sendError(req, res, "REPOSITORY_NOT_FOUND", "No repository with this id was found.");
+      }
+
+      const test = await prisma.test.findUnique({ where: { id: testId } });
+      if (!test || test.repositoryId !== repoId) {
+        return sendError(req, res, "TEST_NOT_FOUND", "No test with this id was found in this repository.");
+      }
+
+      // aggregate pass/fail counts per calendar day, scoped to default branch
+      const rows = await prisma.$queryRaw<{ day: Date; status: string; count: bigint }[]>`
+        SELECT
+          date_trunc('day', te."executedAt") AS day,
+          te.status,
+          COUNT(*) AS count
+        FROM test_executions te
+        JOIN ci_runs r ON r.id = te."ciRunId"
+        WHERE te."testId" = ${testId}
+          AND r.branch = ${repo.defaultBranch}
+        GROUP BY day, te.status
+        ORDER BY day ASC
+      `;
+
+      const byDay = new Map<string, { passCount: number; failCount: number }>();
+      for (const row of rows) {
+        const key = row.day.toISOString().slice(0, 10);
+        const entry = byDay.get(key) ?? { passCount: 0, failCount: 0 };
+        if (row.status === "pass") entry.passCount += Number(row.count);
+        else if (row.status === "fail") entry.failCount += Number(row.count);
+        byDay.set(key, entry);
+      }
+
+      const timeline = Array.from(byDay.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([date, counts]) => ({ date, ...counts }));
+
+      res.json({ testId: test.id, timeline });
+    } catch (err) {
+      req.log?.error({ err }, "GET /repositories/:repoId/tests/:testId/timeline failed");
+      return sendError(req, res, "INTERNAL_ERROR", "Something went wrong while fetching the test timeline.");
+    }
+  }
+);
+
 export { repositoriesRouter };
