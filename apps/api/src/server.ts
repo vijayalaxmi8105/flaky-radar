@@ -1,5 +1,6 @@
 ﻿import "dotenv/config";
 import express from "express";
+import cors from "cors";
 import { requestLogger } from "./middleware/requestLogger.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 import { healthRouter } from "./routes/health.js";
@@ -13,6 +14,7 @@ import { logger } from "./logger.js";
 
 const app = express();
 
+app.use(cors({ origin: "http://localhost:5174", credentials: true }));
 app.use(requestLogger);
 app.use(express.json());
 app.use("/api", rateLimit);
