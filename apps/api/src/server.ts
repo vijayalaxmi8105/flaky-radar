@@ -14,7 +14,21 @@ import { logger } from "./logger.js";
 
 const app = express();
 
-app.use(cors({ origin: "http://localhost:5174", credentials: true }));
+const allowedOriginPattern = /^http:\/\/localhost:\d+$/;
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // No origin (e.g. curl, server-to-server) — allow.
+      if (!origin || allowedOriginPattern.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 app.use(requestLogger);
 app.use(express.json());
 app.use("/api", rateLimit);

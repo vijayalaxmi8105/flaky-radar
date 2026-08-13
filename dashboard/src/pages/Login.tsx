@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { ApiError } from "../api/client";
 
 export function Login() {
   const { login, user, accessToken } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -15,6 +17,7 @@ export function Login() {
     setLoading(true);
     try {
       await login(email, password);
+      navigate("/");
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
