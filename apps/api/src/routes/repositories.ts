@@ -219,7 +219,7 @@ repositoriesRouter.get(
         isActive: repo.isActive,
         githubId: repo.githubId.toString(),
         reliabilityScore,
-        recentRuns: recentRuns.map((r: { id: string; branch: string; status: string; conclusion: string | null; startedAt: Date; completedAt: Date | null; durationMs: number | null }) => ({
+        recentRuns: recentRuns.map((r) => ({
           id: r.id,
           branch: r.branch,
           status: r.status,
@@ -352,9 +352,9 @@ repositoriesRouter.get(
       // Cache writes classification lowercase (recompute-flaky-scores.ts),
       // so compare lowercase here too, matching the list endpoint.
       const flakyTests = latestScores
-        .filter((row) => row.classification === "flaky")
-        .sort((a, b) => b.confidenceScore - a.confidenceScore)
-        .map((row) => ({
+        .filter((row: LatestFlakyScoreFullRow) => row.classification === "flaky")
+        .sort((a: LatestFlakyScoreFullRow, b: LatestFlakyScoreFullRow) => b.confidenceScore - a.confidenceScore)
+        .map((row: LatestFlakyScoreFullRow) => ({
           testId: row.testId,
           suiteName: row.suiteName,
           testName: row.testName,
@@ -447,10 +447,10 @@ repositoriesRouter.get(
         scoreableCount > 0 ? classificationCounts.stable / scoreableCount : null;
 
       const topFlakyTests = latestScores
-        .filter((row) => row.classification === "flaky")
-        .sort((a, b) => b.confidenceScore - a.confidenceScore)
+        .filter((row: LatestFlakyScoreFullRow) => row.classification === "flaky")
+        .sort((a: LatestFlakyScoreFullRow, b: LatestFlakyScoreFullRow) => b.confidenceScore - a.confidenceScore)
         .slice(0, TOP_FLAKY_LIMIT)
-        .map((row) => ({
+        .map((row: LatestFlakyScoreFullRow) => ({
           testId: row.testId,
           suiteName: row.suiteName,
           testName: row.testName,
@@ -468,8 +468,8 @@ repositoriesRouter.get(
       });
 
       const totalRuns = runsInWindow.length;
-      const passedRuns = runsInWindow.filter((r) => r.conclusion === "success").length;
-      const failedRuns = runsInWindow.filter((r) => r.conclusion === "failure").length;
+      const passedRuns = runsInWindow.filter((r: { conclusion: string | null }) => r.conclusion === "success").length;
+      const failedRuns = runsInWindow.filter((r: { conclusion: string | null }) => r.conclusion === "failure").length;
       const runPassRate = totalRuns > 0 ? passedRuns / totalRuns : null;
 
       res.json({
