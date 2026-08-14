@@ -10,3 +10,9 @@ export {
   CI_EVENTS_DLQ_NAME,
   type CiEventDlqJobData,
 } from "./ciEventsDlq";
+export {
+  publishEvent,
+  createSubscriber,
+  FLAKY_RADAR_EVENTS_CHANNEL,
+  type FlakyRadarEvent,
+} from "./pubsub";

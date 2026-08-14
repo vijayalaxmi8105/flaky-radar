@@ -1,6 +1,8 @@
 ﻿import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { createServer } from "http";
+import { attachLiveUpdates } from "./ws/liveUpdates.js";
 import { requestLogger } from "./middleware/requestLogger.js";
 import { rateLimit } from "./middleware/rateLimit.js";
 import { healthRouter } from "./routes/health.js";
@@ -40,11 +42,17 @@ app.use("/api", runsRouter);
 app.use("/api", repositoriesRouter);
 app.use("/api", searchRouter);
 
+const httpServer = createServer(app);
+
+if (process.env.NODE_ENV !== "test") {
+  attachLiveUpdates(httpServer);
+}
+
 const PORT = Number(process.env.PORT ?? 3000);
 if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => {
+  httpServer.listen(PORT, () => {
     logger.info({ port: PORT }, "api server listening");
   });
 }
 
-export { app };
+export { app, httpServer };
