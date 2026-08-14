@@ -45,7 +45,7 @@ repositoriesRouter.get(
         where: { userId },
         select: { repositoryId: true },
       });
-      const repoIds = access.map((a) => a.repositoryId);
+      const repoIds = access.map((a: { repositoryId: string }) => a.repositoryId);
 
       if (repoIds.length === 0) {
         return res.json({ repositories: [] });
@@ -78,7 +78,7 @@ repositoriesRouter.get(
         _count: { id: true },
       });
       const testCountByRepo = new Map(
-        testCounts.map((tc) => [tc.repositoryId, tc._count.id])
+        testCounts.map((tc: { repositoryId: string; _count: { id: number } }) => [tc.repositoryId, tc._count.id])
       );
 
       // Group latest scores by repo, then compute reliabilityScore the same
@@ -93,9 +93,9 @@ repositoriesRouter.get(
         scoresByRepo.set(row.repositoryId, list);
       }
 
-      const results = repos.map((repo) => {
+      const results = repos.map((repo: { id: string; owner: string; name: string; fullName: string; defaultBranch: string; isActive: boolean; githubId: bigint }) => {
         const classifications = scoresByRepo.get(repo.id) ?? [];
-        const scoreable = classifications.filter((c) => c !== "insufficient_data");
+        const scoreable = classifications.filter((c: string) => c !== "insufficient_data");
         const reliabilityScore =
           scoreable.length > 0
             ? scoreable.filter((c) => c === "stable").length / scoreable.length
@@ -162,8 +162,8 @@ repositoriesRouter.get(
         },
       });
 
-      const scored = tests.map((test) => {
-        const executions: AnalyticsExecution[] = test.executions.map((e) => ({
+      const scored = tests.map((test: { id: string; suiteName: string; testName: string; executions: { status: string }[] }) => {
+        const executions: AnalyticsExecution[] = test.executions.map((e: { status: string }) => ({
           status: e.status as AnalyticsExecution["status"],
         }));
 
@@ -190,17 +190,17 @@ repositoriesRouter.get(
       // reliabilityScore: share of scoreable tests (i.e. not INSUFFICIENT_DATA)
       // that are STABLE. Tests with too little data are excluded from both
       // numerator and denominator since they carry no reliability signal yet.
-      const scoreable = scored.filter((t) => t.classification !== "INSUFFICIENT_DATA");
+      const scoreable = scored.filter((t: typeof scored[number]) => t.classification !== "INSUFFICIENT_DATA");
       const reliabilityScore =
         scoreable.length > 0
-          ? scoreable.filter((t) => t.classification === "STABLE").length / scoreable.length
+          ? scoreable.filter((t: typeof scoreable[number]) => t.classification === "STABLE").length / scoreable.length
           : null;
 
       const topFlakyTests = scored
-        .filter((t) => t.classification === "FLAKY" && t.totalExecutions > 0)
-        .sort((a, b) => b.confidenceScore - a.confidenceScore)
+        .filter((t: typeof scored[number]) => t.classification === "FLAKY" && t.totalExecutions > 0)
+        .sort((a: typeof scored[number], b: typeof scored[number]) => b.confidenceScore - a.confidenceScore)
         .slice(0, TOP_FLAKY_LIMIT)
-        .map((t) => ({
+        .map((t: typeof scored[number]) => ({
           testId: t.testId,
           suiteName: t.suiteName,
           testName: t.testName,
@@ -219,7 +219,7 @@ repositoriesRouter.get(
         isActive: repo.isActive,
         githubId: repo.githubId.toString(),
         reliabilityScore,
-        recentRuns: recentRuns.map((r) => ({
+        recentRuns: recentRuns.map((r: { id: string; branch: string; status: string; conclusion: string | null; startedAt: Date; completedAt: Date | null; durationMs: number | null }) => ({
           id: r.id,
           branch: r.branch,
           status: r.status,

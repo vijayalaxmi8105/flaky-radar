@@ -84,3 +84,101 @@ export async function getRepositories(accessToken: string): Promise<Repository[]
   }
   return (body as RepositoriesResponse).repositories;
 }
+
+export interface FlakyTest {
+  testId: string;
+  suiteName: string;
+  testName: string;
+  passRate: number;
+  failureRate: number;
+  totalExecutions: number;
+  confidenceScore: number;
+  computedAt: string;
+}
+
+export interface FlakyTestsResponse {
+  flakyTests: FlakyTest[];
+}
+
+export async function getFlakyTests(
+  accessToken: string,
+  repoId: string
+): Promise<FlakyTest[]> {
+  const res = await fetch(`${API_BASE_URL}/api/repositories/${repoId}/flaky-tests`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    const errField = body?.error;
+    if (typeof errField === "string") {
+      throw new ApiError({ code: errField, message: errField, requestId: "" });
+    }
+    throw new ApiError(errField as ApiErrorBody["error"]);
+  }
+  return (body as FlakyTestsResponse).flakyTests;
+}
+
+export interface TestDetail {
+  testId: string;
+  repositoryId: string;
+  suiteName: string;
+  testName: string;
+  failureRate: number;
+  alternationRate: number;
+  totalExecutions: number;
+  classification: string;
+  confidenceScore: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export async function getTestDetail(
+  accessToken: string,
+  repoId: string,
+  testId: string
+): Promise<TestDetail> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/repositories/${repoId}/tests/${testId}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const body = await res.json();
+  if (!res.ok) {
+    const errField = body?.error;
+    if (typeof errField === "string") {
+      throw new ApiError({ code: errField, message: errField, requestId: "" });
+    }
+    throw new ApiError(errField as ApiErrorBody["error"]);
+  }
+  return body as TestDetail;
+}
+
+export interface TimelineDay {
+  date: string;
+  passCount: number;
+  failCount: number;
+}
+
+export interface TestTimelineResponse {
+  testId: string;
+  timeline: TimelineDay[];
+}
+
+export async function getTestTimeline(
+  accessToken: string,
+  repoId: string,
+  testId: string
+): Promise<TimelineDay[]> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/repositories/${repoId}/tests/${testId}/timeline`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const body = await res.json();
+  if (!res.ok) {
+    const errField = body?.error;
+    if (typeof errField === "string") {
+      throw new ApiError({ code: errField, message: errField, requestId: "" });
+    }
+    throw new ApiError(errField as ApiErrorBody["error"]);
+  }
+  return (body as TestTimelineResponse).timeline;
+}

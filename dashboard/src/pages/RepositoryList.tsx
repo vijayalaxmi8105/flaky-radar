@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   BarChart,
   Bar,
@@ -21,6 +22,7 @@ function scoreColor(score: number | null): string {
 
 export function RepositoryList() {
   const { accessToken, user, logout } = useAuth();
+  const navigate = useNavigate();
   const [repositories, setRepositories] = useState<Repository[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -113,7 +115,8 @@ export function RepositoryList() {
             {repositories.map((repo) => (
               <div
                 key={repo.id}
-                className="bg-slate-800 rounded-lg p-4 flex items-center justify-between"
+                onClick={() => navigate(`/repositories/${repo.id}`)}
+                className="bg-slate-800 rounded-lg p-4 flex items-center justify-between cursor-pointer hover:bg-slate-700"
               >
                 <div>
                   <p className="font-medium">{repo.fullName}</p>
