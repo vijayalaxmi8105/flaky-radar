@@ -16,6 +16,9 @@ jobs:
       - run: npm run lint
   test:
     runs-on: ubuntu-latest
+    env:
+      JWT_ACCESS_SECRET: test_access_secret_for_ci_only
+      JWT_REFRESH_SECRET: test_refresh_secret_for_ci_only
     services:
       postgres:
         image: postgres:16-alpine
