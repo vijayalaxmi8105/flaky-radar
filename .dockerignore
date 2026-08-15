@@ -1,0 +1,12 @@
+node_modules
+apps/api/node_modules
+apps/worker/node_modules
+packages/db/node_modules
+packages/queue/node_modules
+packages/analytics/node_modules
+dashboard
+dist
+.git
+.env
+.env.test
+.env.example
