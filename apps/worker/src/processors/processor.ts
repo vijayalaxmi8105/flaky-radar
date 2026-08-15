@@ -5,7 +5,7 @@ import { logger } from "../logger.js";
 import { fetchJunitXmlForRun } from "../junit/fetchJunitArtifact.js";
 import { parseJunitXml } from "../junit/parseJunit.js";
 import { upsertJunitResults } from "../junit/upsertTestExecutions.js";
-import { publishEvent } from "../events/publishEvent.js";
+import { publishEvent } from "@flaky-radar/queue";
 
 export async function processCiEvent(job: Job<CiEventJobData>) {
   const attemptNumber = job.attemptsMade + 1;
