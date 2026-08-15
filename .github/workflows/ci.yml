@@ -14,7 +14,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
-      test:
+  test:
     runs-on: ubuntu-latest
     env:
       JWT_ACCESS_SECRET: test_access_secret_for_ci_only
@@ -22,7 +22,7 @@ jobs:
       DATABASE_URL: postgresql://test:test@localhost:5433/flaky_radar_test
       REDIS_URL: redis://localhost:6380
     services:
-         postgres:
+      postgres:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: test
@@ -52,7 +52,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate --schema=packages/db/prisma/schema.prisma
-      - - run: npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma --config=packages/db/prisma.config.ts
+      - run: npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma --config=packages/db/prisma.config.ts
       - run: npm run build -w packages/queue
       - run: npm run build -w packages/analytics
       - run: npm run test -w apps/api
