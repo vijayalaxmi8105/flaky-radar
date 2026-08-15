@@ -1,3 +1,4 @@
+import "dotenv/config";
 /**
  * scripts/recompute-flaky-scores.ts
  *
