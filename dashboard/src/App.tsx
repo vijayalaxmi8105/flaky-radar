@@ -3,21 +3,30 @@ import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { Login } from "./pages/Login";
 import { RepositoryList } from "./pages/RepositoryList";
 import { RepositoryDetail } from "./pages/RepositoryDetail";
+import { FlakyRanking } from "./pages/FlakyRanking";
 import { TestDetail } from "./pages/TestDetail";
 import type { ReactNode } from "react";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { accessToken } = useAuth();
+
   if (!accessToken) {
     return <Navigate to="/login" replace />;
   }
+
   return <>{children}</>;
 }
 
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      {/* Login */}
+      <Route
+        path="/login"
+        element={<Login />}
+      />
+
+      {/* Repository List */}
       <Route
         path="/"
         element={
@@ -26,6 +35,8 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* Repository Detail */}
       <Route
         path="/repositories/:repoId"
         element={
@@ -34,6 +45,18 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* Flaky Tests Ranking */}
+      <Route
+        path="/repositories/:repoId/flaky-tests"
+        element={
+          <ProtectedRoute>
+            <FlakyRanking />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Test Detail */}
       <Route
         path="/repositories/:repoId/tests/:testId"
         element={
