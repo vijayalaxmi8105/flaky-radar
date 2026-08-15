@@ -6,8 +6,8 @@
  * This is a stand-in for the not-yet-built BullMQ repeatable scheduled job
  * (originally planned as Day 19). It exists so that `GET /api/repositories`
  * (list) and other endpoints can read `reliabilityScore` from cached data
- * instead of live-recomputing per request, per Section 11's "expensive work
- * must not happen inline" principle.
+ * instead of live-recomputing per request, per Section 11's
+ * "expensive work must not happen inline" principle.
  *
  * Scope for this run:
  *   - Iterates every Test in the DB.
@@ -23,8 +23,9 @@
  *   pnpm exec ts-node scripts/recompute-flaky-scores.ts
  *   (or: npx tsx scripts/recompute-flaky-scores.ts, depending on project setup)
  *
- * NOT a BullMQ job. No scheduling, no retries, no queue involvement.
- * That's intentionally a separate, later slice.
+ * After successful recomputation, a `scores:recomputed` event is published
+ * when at least one score was written. The event is best-effort and does not
+ * cause the recomputation itself to fail.
  */
 
 import { prisma } from "@flaky-radar/db";
@@ -34,6 +35,7 @@ import {
   classify,
   type TestExecution,
 } from "@flaky-radar/analytics";
+import { publishEvent } from "@flaky-radar/queue";
 
 const WINDOW_DAYS = 30;
 
@@ -46,8 +48,12 @@ async function recomputeForTest(test: {
   repositoryId: string;
 }): Promise<"written" | "skipped"> {
   const repository = await prisma.repository.findUniqueOrThrow({
-    where: { id: test.repositoryId },
-    select: { defaultBranch: true },
+    where: {
+      id: test.repositoryId,
+    },
+    select: {
+      defaultBranch: true,
+    },
   });
 
   const windowStart = new Date();
@@ -56,11 +62,19 @@ async function recomputeForTest(test: {
   const executions = await prisma.testExecution.findMany({
     where: {
       testId: test.id,
-      executedAt: { gte: windowStart },
-      ciRun: { branch: repository.defaultBranch },
+      executedAt: {
+        gte: windowStart,
+      },
+      ciRun: {
+        branch: repository.defaultBranch,
+      },
     },
-    orderBy: { executedAt: "asc" },
-    select: { status: true },
+    orderBy: {
+      executedAt: "asc",
+    },
+    select: {
+      status: true,
+    },
   });
 
   if (executions.length === 0) {
@@ -74,7 +88,10 @@ async function recomputeForTest(test: {
   const failureRateResult = failureRate(typedExecutions);
   const alternationRateResult = alternationRate(typedExecutions);
 
-  const { classification, confidence_score: confidenceScore } = classify({
+  const {
+    classification,
+    confidence_score: confidenceScore,
+  } = classify({
     failure_rate: failureRateResult.failureRate,
     alternation_rate: alternationRateResult.alternationRate,
     total_executions: failureRateResult.totalExecutions,
@@ -97,32 +114,68 @@ async function recomputeForTest(test: {
 
 async function main() {
   const tests = await prisma.test.findMany({
-    select: { id: true, repositoryId: true },
+    select: {
+      id: true,
+      repositoryId: true,
+    },
   });
 
   let written = 0;
   let skipped = 0;
   let failed = 0;
 
-  console.log(`Recomputing flaky_scores for ${tests.length} tests (window=${WINDOW_DAYS}d)...`);
+  console.log(
+    `Recomputing flaky_scores for ${tests.length} tests (window=${WINDOW_DAYS}d)...`
+  );
 
   for (const test of tests) {
     try {
       const result = await recomputeForTest(test);
-      if (result === "written") written++;
-      else skipped++;
+
+      if (result === "written") {
+        written++;
+      } else {
+        skipped++;
+      }
     } catch (err) {
       failed++;
-      console.error(`Failed to recompute test ${test.id}:`, err);
+
+      console.error(
+        `Failed to recompute test ${test.id}:`,
+        err
+      );
     }
   }
 
-  console.log(`Done. written=${written} skipped=${skipped} failed=${failed}`);
+  console.log(
+    `Done. written=${written} skipped=${skipped} failed=${failed}`
+  );
+
+  if (written > 0) {
+    try {
+      await publishEvent({
+        type: "scores:recomputed",
+      });
+
+      console.log("Published scores:recomputed event");
+    } catch (err) {
+      // Best-effort — the recompute itself succeeded even if the
+      // live-update broadcast fails.
+      console.error(
+        "Failed to publish scores:recomputed event:",
+        err
+      );
+    }
+  }
 }
 
 main()
   .catch((err) => {
-    console.error("Fatal error in recompute-flaky-scores:", err);
+    console.error(
+      "Fatal error in recompute-flaky-scores:",
+      err
+    );
+
     process.exitCode = 1;
   })
   .finally(async () => {
