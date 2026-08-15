@@ -63,6 +63,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate --schema=packages/db/prisma/schema.prisma
+      - - run: npx prisma migrate deploy --schema=packages/db/prisma/schema.prisma --config=packages/db/prisma.config.ts
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5433/flaky_radar_test
       - run: npm run build -w packages/queue
       - run: npm run build -w packages/analytics
       - run: npm run build -w apps/api
