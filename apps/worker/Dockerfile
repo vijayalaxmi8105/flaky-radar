@@ -28,4 +28,4 @@ COPY --from=build /app/apps/worker/dist ./apps/worker/dist
 COPY --from=build /app/apps/worker/package.json ./apps/worker/package.json
 COPY --from=build /app/packages ./packages
 EXPOSE 3001
-CMD ["node", "apps/worker/dist/src/index.js"]
+CMD ["node", "apps/worker/dist/index.js"]
