@@ -11,9 +11,8 @@ import { authRouter } from "./routes/auth.js";
 import { runsRouter } from "./routes/runs.js";
 import { searchRouter } from "./routes/search.js";
 import { repositoriesRouter } from "./routes/repositories.js";
-// import { webhookRouter } from "./webhooks/github.js";
+import { webhookRouter } from "./webhooks/github.js";
 import { logger } from "./logger.js";
-
 const app = express();
 
 const allowedOriginPattern = /^http:\/\/localhost:\d+$/;
