@@ -33,6 +33,7 @@ app.use(
 app.use(requestLogger);
 app.use(express.json());
 app.use("/api", rateLimit);
+app.use("/webhooks", webhookRouter);
 app.use(healthRouter);
 app.use("/api", queueStatsRouter);
 app.use("/api/auth", authRouter);
