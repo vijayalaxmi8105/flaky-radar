@@ -13,8 +13,8 @@ import { searchRouter } from "./routes/search.js";
 import { repositoriesRouter } from "./routes/repositories.js";
 import { webhookRouter } from "./webhooks/github.js";
 import { logger } from "./logger.js";
-const app = express();
 
+const app = express();
 const allowedOriginPattern = /^http:\/\/localhost:\d+$/;
 
 app.use(
@@ -30,10 +30,18 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(requestLogger);
+
+// Webhook router must be mounted BEFORE the global express.json() below.
+// It applies its own express.json({ verify: captureRawBody }) locally to
+// capture the raw request body for HMAC signature verification. If the
+// global parser ran first, it would consume the body stream and rawBody
+// would never be populated.
+app.use("/webhooks", webhookRouter);
+
 app.use(express.json());
 app.use("/api", rateLimit);
-app.use("/webhooks", webhookRouter);
 app.use(healthRouter);
 app.use("/api", queueStatsRouter);
 app.use("/api/auth", authRouter);
@@ -48,6 +56,7 @@ if (process.env.NODE_ENV !== "test") {
 }
 
 const PORT = Number(process.env.PORT ?? 3000);
+
 if (process.env.NODE_ENV !== "test") {
   httpServer.listen(PORT, () => {
     logger.info({ port: PORT }, "api server listening");
