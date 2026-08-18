@@ -6,7 +6,7 @@ const WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET;
 if (!WEBHOOK_SECRET) {
   throw new Error("GITHUB_WEBHOOK_SECRET is not set");
 }
-
+console.log("DEBUG secret length:", WEBHOOK_SECRET.length, "first4:", WEBHOOK_SECRET.slice(0,4), "last4:", WEBHOOK_SECRET.slice(-4));
 export function verifyGithubSignature(
   req: Request,
   res: Response,
