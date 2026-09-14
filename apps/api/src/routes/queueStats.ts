@@ -1,9 +1,15 @@
 import { Router } from "express";
 import { ciEventsQueue, ciEventsDlq } from "@flaky-radar/queue";
+import { authenticate } from "../middleware/authenticate.js";
+import { requireRole } from "../middleware/requireRole.js";
 
 export const queueStatsRouter = Router();
 
-queueStatsRouter.get("/admin/queue-stats", async (_req, res) => {
+queueStatsRouter.get(
+  "/admin/queue-stats",
+  authenticate,
+  requireRole("admin"),
+  async (_req, res) => {
   try {
     const [ciEventsCounts, dlqCounts] = await Promise.all([
       ciEventsQueue.getJobCounts(
@@ -36,7 +42,11 @@ queueStatsRouter.get("/admin/queue-stats", async (_req, res) => {
   }
 });
 
-queueStatsRouter.get("/admin/dlq", async (req, res) => {
+queueStatsRouter.get(
+  "/admin/dlq",
+  authenticate,
+  requireRole("admin"),
+  async (req, res) => {
   try {
     const limit = Math.min(
       Math.max(parseInt(String(req.query.limit ?? "20"), 10) || 20, 1),

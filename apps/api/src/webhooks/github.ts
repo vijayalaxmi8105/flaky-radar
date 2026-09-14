@@ -6,6 +6,7 @@ import { logger } from "../logger.js";
 import { claimDeliveryId } from "./dedupe.js";
 import { prisma, Prisma } from "@flaky-radar/db";
 import { ciEventsQueue, PROCESS_WORKFLOW_RUN_JOB } from "@flaky-radar/queue";
+import { webhookReceivedCounter } from "../metrics.js";
 
 export const webhookRouter = Router();
 
@@ -20,6 +21,8 @@ webhookRouter.post(
     if (!deliveryId || !eventType) {
       return res.status(400).json({ error: "missing delivery headers" });
     }
+
+    webhookReceivedCounter.labels(eventType).inc();
 
     // Fast in-memory dedupe check
     let isNew = true;
@@ -68,6 +71,7 @@ webhookRouter.post(
       try {
         await ciEventsQueue.add(PROCESS_WORKFLOW_RUN_JOB, {
           webhookDeliveryId: delivery.id,
+          correlationId: String(req.id),
         });
       } catch (err) {
         logger.error(

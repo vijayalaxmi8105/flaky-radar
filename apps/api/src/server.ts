@@ -13,6 +13,7 @@ import { searchRouter } from "./routes/search.js";
 import { repositoriesRouter } from "./routes/repositories.js";
 import { webhookRouter } from "./webhooks/github.js";
 import { logger } from "./logger.js";
+import { register, apiRequestDuration } from "./metrics.js";
 
 const app = express();
 const allowedOriginPattern = /^http:\/\/localhost:\d+$/;
@@ -33,6 +34,18 @@ app.use(
 
 app.use(requestLogger);
 
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+  res.on("finish", () => {
+    const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
+    const route = req.route?.path ?? req.path;
+    apiRequestDuration
+      .labels(req.method, route, String(res.statusCode))
+      .observe(durationSeconds);
+  });
+  next();
+});
+
 // Webhook router must be mounted BEFORE the global express.json() below.
 // It applies its own express.json({ verify: captureRawBody }) locally to
 // capture the raw request body for HMAC signature verification. If the
@@ -48,6 +61,11 @@ app.use("/api/auth", authRouter);
 app.use("/api", runsRouter);
 app.use("/api", repositoriesRouter);
 app.use("/api", searchRouter);
+
+app.get("/metrics", async (_req, res) => {
+  res.set("Content-Type", register.contentType);
+  res.end(await register.metrics());
+});
 
 const httpServer = createServer(app);
 

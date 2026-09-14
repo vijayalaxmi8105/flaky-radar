@@ -9,8 +9,14 @@ import {
 } from "@flaky-radar/queue";
 import { logger } from "./logger.js";
 import { processCiEvent } from "./processors/processor.js";
+import { register } from "./metrics.js";
 
-const healthServer = createServer((req, res) => {
+const healthServer = createServer(async (req, res) => {
+  if (req.url === "/metrics") {
+    res.writeHead(200, { "Content-Type": register.contentType });
+    res.end(await register.metrics());
+    return;
+  }
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ status: "ok" }));
 });
@@ -24,15 +30,20 @@ const worker = new Worker<CiEventJobData>(CI_EVENTS_QUEUE_NAME, processCiEvent, 
   concurrency: 1,
 });
 worker.on("completed", (job) => {
-  logger.info({ jobId: job.id }, "worker: job completed");
+  logger.info(
+    { jobId: job.id, correlationId: job.data.correlationId ?? "unknown" },
+    "worker: job completed"
+  );
 });
 worker.on("failed", async (job, err) => {
   const attemptsMade = job?.attemptsMade ?? 0;
   const maxAttempts = job?.opts.attempts ?? 0;
   const willRetry = attemptsMade < maxAttempts;
+  const correlationId = job?.data.correlationId ?? "unknown";
   logger.error(
     {
       jobId: job?.id,
+      correlationId,
       attemptsMade,
       maxAttempts,
       willRetry,
@@ -51,12 +62,12 @@ worker.on("failed", async (job, err) => {
         failedAt: new Date().toISOString(),
       });
       logger.warn(
-        { jobId: job.id },
+        { jobId: job.id, correlationId },
         "worker: job permanently failed, moved to DLQ"
       );
     } catch (dlqErr) {
       logger.error(
-        { jobId: job.id, error: (dlqErr as Error).message },
+        { jobId: job.id, correlationId, error: (dlqErr as Error).message },
         "worker: FAILED TO WRITE TO DLQ — job data may be lost"
       );
     }

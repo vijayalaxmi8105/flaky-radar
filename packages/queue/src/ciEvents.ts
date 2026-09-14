@@ -6,6 +6,7 @@ export const PROCESS_WORKFLOW_RUN_JOB = "process-workflow-run";
 
 export interface CiEventJobData {
   webhookDeliveryId: string;
+   correlationId?: string;
 }
 
 export const ciEventsQueue = new Queue<CiEventJobData>(CI_EVENTS_QUEUE_NAME, {

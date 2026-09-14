@@ -6,13 +6,27 @@ import { fetchJunitXmlForRun } from "../junit/fetchJunitArtifact.js";
 import { parseJunitXml } from "../junit/parseJunit.js";
 import { upsertJunitResults } from "../junit/upsertTestExecutions.js";
 import { publishEvent } from "@flaky-radar/queue";
+import { jobProcessingDuration } from "../metrics.js";
 
 export async function processCiEvent(job: Job<CiEventJobData>) {
-  const attemptNumber = job.attemptsMade + 1;
+  const startTime = process.hrtime.bigint();
+  try {
+    await processCiEventInner(job);
+  } finally {
+    const durationSeconds = Number(process.hrtime.bigint() - startTime) / 1e9;
+    jobProcessingDuration.observe(durationSeconds);
+  }
+}
 
-  logger.info(
+async function processCiEventInner(job: Job<CiEventJobData>) {
+  const attemptNumber = job.attemptsMade + 1;
+  const log = logger.child({
+    correlationId: job.data.correlationId ?? "unknown",
+    jobId: job.id,
+  });
+
+  log.info(
     {
-      jobId: job.id,
       attemptNumber,
       maxAttempts: job.opts.attempts,
       data: job.data,
