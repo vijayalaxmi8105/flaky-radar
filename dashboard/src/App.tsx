@@ -5,6 +5,7 @@ import { RepositoryList } from "./pages/RepositoryList";
 import { RepositoryDetail } from "./pages/RepositoryDetail";
 import { FlakyRanking } from "./pages/FlakyRanking";
 import { TestDetail } from "./pages/TestDetail";
+import { AdminQueueStats } from "./pages/AdminQueueStats";
 import type { ReactNode } from "react";
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -12,6 +13,20 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
   if (!accessToken) {
     return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: ReactNode }) {
+  const { accessToken, user } = useAuth();
+
+  if (!accessToken) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.role !== "admin") {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -63,6 +78,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <TestDetail />
           </ProtectedRoute>
+        }
+      />
+
+      {/* Admin: Queue Health */}
+      <Route
+        path="/admin/queue-stats"
+        element={
+          <AdminRoute>
+            <AdminQueueStats />
+          </AdminRoute>
         }
       />
     </Routes>

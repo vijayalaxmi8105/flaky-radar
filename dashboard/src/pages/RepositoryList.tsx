@@ -61,12 +61,22 @@ export function RepositoryList() {
           <h1 className="text-2xl font-bold">Repositories</h1>
           {user && <p className="text-sm text-slate-400">Signed in as {user.email} ({user.role})</p>}
         </div>
-        <button
-          onClick={logout}
-          className="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-sm"
-        >
-          Log out
-        </button>
+        <div className="flex items-center gap-2">
+          {user?.role === "admin" && (
+            <button
+              onClick={() => navigate("/admin/queue-stats")}
+              className="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-sm"
+            >
+              Queue Health
+            </button>
+          )}
+          <button
+            onClick={logout}
+            className="px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-sm"
+          >
+            Log out
+          </button>
+        </div>
       </div>
 
       {error && (

@@ -74,8 +74,6 @@ export async function getRepositories(accessToken: string): Promise<Repository[]
   });
   const body = await res.json();
   if (!res.ok) {
-    // Some errors (e.g. auth middleware) return {error: "code_string"},
-    // others (sendError) return {error: {code, message, requestId}}.
     const errField = body?.error;
     if (typeof errField === "string") {
       throw new ApiError({ code: errField, message: errField, requestId: "" });
@@ -181,4 +179,32 @@ export async function getTestTimeline(
     throw new ApiError(errField as ApiErrorBody["error"]);
   }
   return (body as TestTimelineResponse).timeline;
+}
+
+export interface QueueStats {
+  ciEvents: {
+    waiting: number;
+    active: number;
+    completed: number;
+    failed: number;
+    delayed: number;
+  };
+  dlq: {
+    size: number;
+  };
+}
+
+export async function getQueueStats(accessToken: string): Promise<QueueStats> {
+  const res = await fetch(`${API_BASE_URL}/api/admin/queue-stats`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    const errField = body?.error;
+    if (typeof errField === "string") {
+      throw new ApiError({ code: errField, message: errField, requestId: "" });
+    }
+    throw new ApiError(errField as ApiErrorBody["error"]);
+  }
+  return body as QueueStats;
 }
