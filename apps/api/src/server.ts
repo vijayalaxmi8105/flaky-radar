@@ -33,3 +33,49 @@ app.use(
     credentials: true,
   })
 );
+
+app.use(requestLogger);
+
+app.use((req, res, next) => {
+  const start = process.hrtime.bigint();
+  res.on("finish", () => {
+    const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
+    const route = req.route?.path ?? req.path;
+    apiRequestDuration
+      .labels(req.method, route, String(res.statusCode))
+      .observe(durationSeconds);
+  });
+  next();
+});
+
+app.use("/webhooks", webhookRouter);
+
+app.use(express.json());
+app.use("/api", rateLimit);
+app.use(healthRouter);
+app.use("/api", queueStatsRouter);
+app.use("/api/auth", authRouter);
+app.use("/api", runsRouter);
+app.use("/api", repositoriesRouter);
+app.use("/api", searchRouter);
+
+app.get("/metrics", async (_req, res) => {
+  res.set("Content-Type", register.contentType);
+  res.end(await register.metrics());
+});
+
+const httpServer = createServer(app);
+
+if (process.env.NODE_ENV !== "test") {
+  attachLiveUpdates(httpServer);
+}
+
+const PORT = Number(process.env.PORT ?? 3000);
+
+if (process.env.NODE_ENV !== "test") {
+  httpServer.listen(PORT, () => {
+    logger.info({ port: PORT }, "api server listening");
+  });
+}
+
+export { app, httpServer };
