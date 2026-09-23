@@ -2,11 +2,23 @@
 FROM node:20-alpine AS base
 WORKDIR /app
 COPY . .
+RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
 RUN npm ci
 
-# ---- Build: generate Prisma client, compile TypeScript ----
+# ---- Build: compile TypeScript ----
 FROM base AS build
-RUN npx prisma generate --schema=packages/db/prisma/schema.prisma
 RUN npm run build -w packages/db
 RUN npm run build -w packages/queue
 RUN npm run build -w apps/api
+
+# ---- Runtime: minimal image, only what's needed to run ----
+FROM node:20-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/apps/api/dist ./apps/api/dist
+COPY --from=build /app/apps/api/package.json ./apps/api/package.json
+COPY --from=build /app/packages ./packages
+EXPOSE 3000
+CMD cd packages/db && npx prisma migrate deploy && cd /app && node apps/api/dist/src/server.js
