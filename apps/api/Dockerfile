@@ -9,6 +9,7 @@ RUN npm ci
 FROM base AS build
 RUN npm run build -w packages/db
 RUN npm run build -w packages/queue
+RUN npm run build -w packages/analytics
 RUN npm run build -w apps/api
 
 # ---- Runtime: minimal image, only what's needed to run ----
