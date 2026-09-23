@@ -17,12 +17,14 @@ import { register, apiRequestDuration } from "./metrics.js";
 
 const app = express();
 const allowedOriginPattern = /^http:\/\/localhost:\d+$/;
+const allowedOrigins = [
+  "https://flaky-radar.onrender.com", // dashboard
+];
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // No origin (e.g. curl, server-to-server) — allow.
-      if (!origin || allowedOriginPattern.test(origin)) {
+      if (!origin || allowedOriginPattern.test(origin) || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
@@ -31,54 +33,3 @@ app.use(
     credentials: true,
   })
 );
-
-app.use(requestLogger);
-
-app.use((req, res, next) => {
-  const start = process.hrtime.bigint();
-  res.on("finish", () => {
-    const durationSeconds = Number(process.hrtime.bigint() - start) / 1e9;
-    const route = req.route?.path ?? req.path;
-    apiRequestDuration
-      .labels(req.method, route, String(res.statusCode))
-      .observe(durationSeconds);
-  });
-  next();
-});
-
-// Webhook router must be mounted BEFORE the global express.json() below.
-// It applies its own express.json({ verify: captureRawBody }) locally to
-// capture the raw request body for HMAC signature verification. If the
-// global parser ran first, it would consume the body stream and rawBody
-// would never be populated.
-app.use("/webhooks", webhookRouter);
-
-app.use(express.json());
-app.use("/api", rateLimit);
-app.use(healthRouter);
-app.use("/api", queueStatsRouter);
-app.use("/api/auth", authRouter);
-app.use("/api", runsRouter);
-app.use("/api", repositoriesRouter);
-app.use("/api", searchRouter);
-
-app.get("/metrics", async (_req, res) => {
-  res.set("Content-Type", register.contentType);
-  res.end(await register.metrics());
-});
-
-const httpServer = createServer(app);
-
-if (process.env.NODE_ENV !== "test") {
-  attachLiveUpdates(httpServer);
-}
-
-const PORT = Number(process.env.PORT ?? 3000);
-
-if (process.env.NODE_ENV !== "test") {
-  httpServer.listen(PORT, () => {
-    logger.info({ port: PORT }, "api server listening");
-  });
-}
-
-export { app, httpServer };
