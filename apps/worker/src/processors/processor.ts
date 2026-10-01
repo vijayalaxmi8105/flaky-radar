@@ -50,17 +50,21 @@ async function processCiEventInner(job: Job<CiEventJobData>) {
     );
   }
 
-  const repository = await prisma.repository.findUnique({
+  const [ownerLogin, repoName] = repoFullName.split("/");
+
+  const repository = await prisma.repository.upsert({
     where: {
       fullName: repoFullName,
     },
+    update: {},
+    create: {
+      githubId: BigInt(payload.repository.id),
+      owner: ownerLogin,
+      name: repoName,
+      fullName: repoFullName,
+      defaultBranch: payload.repository.default_branch ?? "main",
+    },
   });
-
-  if (!repository) {
-    throw new Error(
-      `Unknown repository "${repoFullName}" — not registered in the system (deliveryId=${delivery.id})`
-    );
-  }
 
   const startedAt = runData.run_started_at
     ? new Date(runData.run_started_at)

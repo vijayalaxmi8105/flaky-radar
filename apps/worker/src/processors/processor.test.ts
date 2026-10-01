@@ -26,7 +26,7 @@ function payload(runId: number, repoFullName: string) {
       updated_at: "2026-08-01T10:05:00Z",
       actor: { login: "octocat" },
     },
-    repository: { full_name: repoFullName },
+        repository: { id: 1, full_name: repoFullName, default_branch: "main" },
   };
 }
 
